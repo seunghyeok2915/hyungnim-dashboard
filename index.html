@@ -126,6 +126,7 @@
 
     <div class="tabs">
       <button class="tab active" data-tab="today">Today</button>
+      <button class="tab" data-tab="coach">Coach</button>
       <button class="tab" data-tab="patterns">Patterns</button>
       <button class="tab" data-tab="journal">Journal</button>
       <button class="tab" data-tab="loop">Loop</button>
@@ -134,6 +135,50 @@
     </div>
 
     <div class="grid">
+      <!-- COACH -->
+      <section class="card" data-pane="coach">
+        <h2 class="section">코칭 생성(형님 포맷)</h2>
+        <div class="muted" style="margin-bottom:10px">형님이 원하신 문장 포맷 그대로: <b>행동 1개 → 설명식 근거 → 체크포인트</b>. 그리고 완료/미완료 찍으면 다음 코칭이 더 정확해집니다.</div>
+        <div class="two">
+          <div class="item">
+            <h3>지금 상황</h3>
+            <div class="meta">(선택) 상황을 고르면 추천이 더 정교해집니다.</div>
+            <div class="row" style="margin-top:10px">
+              <select id="context">
+                <option value="work">회사/업무</option>
+                <option value="home">집/개인</option>
+                <option value="commute">이동</option>
+              </select>
+              <select id="mode">
+                <option value="focus">집중(딥워크)</option>
+                <option value="restart">재시동(전환/점심후)</option>
+                <option value="shutdown">종료(정리)</option>
+              </select>
+              <input id="blockMin" type="text" inputmode="numeric" placeholder="분 (기본 25)" style="width:160px" />
+            </div>
+            <div class="row" style="margin-top:10px">
+              <button id="genCoach" class="good">코칭 생성</button>
+              <button id="copyCoach" class="ghost">복사</button>
+              <span id="coachMsg" class="muted"></span>
+            </div>
+          </div>
+          <div class="item">
+            <h3>코칭 결과</h3>
+            <div id="coachOut" style="white-space:pre-wrap;font-weight:900"></div>
+            <div class="row" style="margin-top:10px">
+              <button id="markDone" class="good">완료</button>
+              <button id="markNotDone" class="bad">미완료</button>
+              <span class="muted">(완료/미완료는 다음 추천 튜닝에 반영)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" data-pane="coach">
+        <h2 class="section">최근 코칭 히스토리(로컬)</h2>
+        <div id="coachHistory" class="list"></div>
+      </section>
+
       <!-- TODAY -->
       <section class="card" data-pane="today">
         <h2 class="section">오늘 요약</h2>
@@ -279,14 +324,16 @@
 const K_PROFILE = 'hyungnimDash:profile';
 const K_JOURNAL = 'hyungnimDash:journal';
 const K_CHANGELOG = 'hyungnimDash:changelog';
+const K_COACH = 'hyungnimDash:coachHistory';
 
 // Dashboard version: bump when you change UI/logic.
-const DASH_VERSION = '2026-03-06.1';
+const DASH_VERSION = '2026-03-06.2';
 
 let profile = null;
 let journal = null;
 let loopState = null; // lifecoach-state.json (YoMi loop)
 let changelog = [];   // local dashboard change log
+let coachHistory = []; // local coaching loop history
 
 const by = id => document.getElementById(id);
 const fmt = n => (Number.isFinite(n) ? n.toLocaleString('ko-KR') : String(n));
@@ -340,10 +387,13 @@ function loadLocal(){
   const p = localStorage.getItem(K_PROFILE);
   const j = localStorage.getItem(K_JOURNAL);
   const c = localStorage.getItem(K_CHANGELOG);
+  const h = localStorage.getItem(K_COACH);
   if(p) profile = JSON.parse(p);
   if(j) journal = JSON.parse(j);
   if(c) changelog = JSON.parse(c);
+  if(h) coachHistory = JSON.parse(h);
   if(!Array.isArray(changelog)) changelog = [];
+  if(!Array.isArray(coachHistory)) coachHistory = [];
 }
 
 async function loadRepoDefaults(){
@@ -359,6 +409,7 @@ function saveLocal(){
   localStorage.setItem(K_PROFILE, JSON.stringify(profile));
   localStorage.setItem(K_JOURNAL, JSON.stringify(journal));
   localStorage.setItem(K_CHANGELOG, JSON.stringify(changelog));
+  localStorage.setItem(K_COACH, JSON.stringify(coachHistory));
   flashChip('저장됨', 'var(--ok)');
 }
 
@@ -366,6 +417,7 @@ function wipeLocal(){
   localStorage.removeItem(K_PROFILE);
   localStorage.removeItem(K_JOURNAL);
   localStorage.removeItem(K_CHANGELOG);
+  localStorage.removeItem(K_COACH);
   location.reload();
 }
 
@@ -397,12 +449,87 @@ function ensureChangelog(){
     pushChangelog({
       title: 'dashboard updated',
       details: [
-        'Loop 탭 추가(주간 요약/자동 제안/변경 로그)',
-        'YoMi daily_reflection(배운 점) 자동 추출 표시',
+        'Coach 탭 추가(형님 포맷 코칭 생성 + 완료/미완료 기록)',
+        'Loop 탭: 주간 요약/자동 제안/YoMi 회고(daily_reflection)/변경 로그',
         '로컬 우선 저장(privacy) + JSON 백업 유지'
       ]
     });
   }
+}
+
+// ----------------- coach tab (dashboard-assisted coaching loop) -----------------
+let lastCoachText = '';
+
+function pickBlockMin(){
+  const raw = Number((by('blockMin')?.value || '').trim());
+  return Number.isFinite(raw) && raw > 0 ? Math.min(180, raw) : 25;
+}
+
+function generateCoachText({context, mode, blockMin}){
+  let action = `${blockMin}분 타이머 켜고 만들던 작업 한 덩어리만 끝까지 밀어보세요.`;
+  let reason = `시작 선언 직후 즉시 착수하면 ‘결정 피로’가 줄고 몰입 진입이 빨라진다는 연구/행동과학 근거가있습니다.(착수 지연 차단 효과).`;
+  let checkpoint = `${blockMin}분 끝나면 완료 1개/막힘 1개만 주세요.`;
+
+  if(mode === 'restart'){
+    action = `물 한잔 + 만들던 파일 열기 + 첫 줄 수정까지 딱 3분만 하고, 바로 ${blockMin}분 타이머로 다시 붙으세요.`;
+    reason = `전환 직후(점심/회의/이동 후)에는 재시동 비용이 커서, ‘아주 작은 시작’으로 마찰을 낮추면 실행 확률이 올라간다는 근거가있습니다.(micro-start/마찰 최소화).`;
+    checkpoint = `${blockMin}분 끝나면 재시동 성공/실패 원인 1줄만 주세요.`;
+  }
+
+  if(mode === 'shutdown'){
+    action = `지금 7분만 써서 오늘 닫기: (1) 미완료 1개를 내일 첫 작업으로 옮기고 (2) 종료 기준을 1줄로 남기세요.`;
+    reason = `짧은 종료 의식(shutdown ritual)은 머릿속 점유를 줄이고, 다음날 재시동 비용을 낮춰 지속성을 돕는다는 근거가있습니다.(컨텍스트 보존 효과).`;
+    checkpoint = `내일 시작 때 첫 행동 실행 여부로 체크하겠습니다.`;
+  }
+
+  if(context === 'commute'){
+    action = `이동 중이면 1분만: 오늘 최우선 1개를 문장으로 적고, 도착 즉시 ${blockMin}분 타이머로 그 파일부터 여세요.`;
+    reason = `사전에 ‘무엇을 할지’를 고정하면 도착 후 결정 피로가 줄고 착수가 빨라진다는 근거가있습니다.(implementation intention/사전 고정).`;
+    checkpoint = `도착 후 ${blockMin}분 1회만 돌리고 완료/막힘 주세요.`;
+  }
+
+  return `좋습니다 형님, 바로 가시죠.\n${action}\n${reason} ${checkpoint} 🤣`;
+}
+
+function pushCoachEntry({context, mode, blockMin, text}){
+  coachHistory ||= [];
+  coachHistory.unshift({
+    timestamp: new Date().toISOString(),
+    title: 'generated coaching',
+    context, mode, blockMin,
+    text,
+    status: 'pending'
+  });
+  coachHistory = coachHistory.slice(0, 80);
+  saveLocal();
+}
+
+function markLatestCoach(status){
+  if(!coachHistory?.length) return;
+  coachHistory[0].status = status;
+  saveLocal();
+  renderCoachTab();
+}
+
+function renderCoachTab(){
+  if(!by('coachOut')) return;
+
+  if(!lastCoachText){
+    const latest = coachHistory?.[0];
+    if(latest?.text) lastCoachText = latest.text;
+  }
+  by('coachOut').textContent = lastCoachText || '아직 생성된 코칭이 없습니다. “코칭 생성”을 눌러주세요.';
+
+  const list = (coachHistory || []).slice(0, 12);
+  by('coachHistory').innerHTML = list.map(e=>{
+    const st = e.status === 'done' ? '<span class="tag t-ok">완료</span>' : e.status === 'not_done' ? '<span class="tag t-no">미완료</span>' : '<span class="tag t-r">대기</span>';
+    return `
+      <div class="item">
+        <h3>${escapeHtml(e.title || 'coach')} ${st}</h3>
+        <div class="meta">${escapeHtml(e.timestamp || '')} · ${escapeHtml(e.mode||'')} · ${escapeHtml(e.context||'')} · ${escapeHtml(String(e.blockMin||''))}m</div>
+        <div style="margin-top:8px;white-space:pre-wrap;font-weight:900">${escapeHtml(e.text||'')}</div>
+      </div>`;
+  }).join('') || '<div class="muted">히스토리가 없습니다. 첫 코칭을 생성해보세요.</div>';
 }
 
 function getLoopEntries(){
@@ -717,6 +844,7 @@ function renderLoopTab(){
 function renderAll(){
   renderChips();
   renderSettings();
+  renderCoachTab();
   renderToday();
   renderPatterns();
   renderLoopTab();
@@ -760,7 +888,7 @@ by('load').addEventListener('click', async ()=>{
 });
 
 by('export').addEventListener('click', ()=>{
-  const pack = {profile, journal};
+  const pack = {profile, journal, coachHistory};
   const blob = new Blob([JSON.stringify(pack, null, 2)], {type:'application/json;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -776,6 +904,7 @@ by('file').addEventListener('change', async (ev)=>{
     const pack = JSON.parse(txt);
     if(pack.profile) profile = pack.profile;
     if(pack.journal) journal = pack.journal;
+    if(pack.coachHistory) coachHistory = pack.coachHistory;
     saveLocal();
     renderAll();
   }catch{
@@ -800,6 +929,35 @@ by('saveCheckin').addEventListener('click', ()=>{
   renderJournal();
   renderToday();
 });
+
+// Coach tab actions
+by('genCoach').addEventListener('click', ()=>{
+  const context = by('context')?.value || 'work';
+  const mode = by('mode')?.value || 'focus';
+  const blockMin = pickBlockMin();
+  const text = generateCoachText({context, mode, blockMin});
+  lastCoachText = text;
+  by('coachOut').textContent = text;
+  pushCoachEntry({context, mode, blockMin, text});
+  renderCoachTab();
+  by('coachMsg').textContent = '생성 완료';
+  setTimeout(()=>{ if(by('coachMsg')) by('coachMsg').textContent=''; }, 1200);
+});
+
+by('copyCoach').addEventListener('click', async ()=>{
+  try{
+    const text = (by('coachOut')?.textContent || '').trim();
+    if(!text) return;
+    await navigator.clipboard.writeText(text);
+    by('coachMsg').textContent = '복사됨';
+    setTimeout(()=>{ if(by('coachMsg')) by('coachMsg').textContent=''; }, 1200);
+  }catch{
+    by('coachMsg').textContent = '복사 실패(권한)';
+  }
+});
+
+by('markDone').addEventListener('click', ()=> markLatestCoach('done'));
+by('markNotDone').addEventListener('click', ()=> markLatestCoach('not_done'));
 
 by('suggest').addEventListener('click', ()=>{
   // research-based *structure* (not medical): 1 action, tiny, anchored to schedule
