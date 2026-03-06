@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="dark"/>
+  <title>형님 대시보드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#070a12;--bg2:#0d1633;--card:#0f1734cc;--line:#2a3570;--txt:#e9efff;--muted:#9aa8d7;
+      --ok:#38ef7d;--warn:#ffd166;--bad:#ff6b6b;--pri:#7aa2ff;--vio:#d2b5ff;
+      --shadow: 0 22px 70px rgba(0,0,0,.48);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:'IBM Plex Sans KR',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      color:var(--txt);
+      background:
+        radial-gradient(1000px 600px at 10% -15%, #7aa2ff33, transparent),
+        radial-gradient(900px 520px at 95% 0%, #38ef7d22, transparent),
+        radial-gradient(700px 450px at 35% 120%, #d2b5ff22, transparent),
+        linear-gradient(160deg,var(--bg),var(--bg2));
+      min-height:100vh;
+    }
+    .wrap{max-width:1180px;margin:0 auto;padding:26px 18px 60px}
+    header{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:flex-end}
+    h1{margin:0;font-family:'Fraunces',serif;font-weight:800;letter-spacing:.2px;font-size:clamp(28px,5vw,52px);line-height:1.05}
+    .sub{margin:10px 0 0;color:var(--muted);max-width:78ch}
+    .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+    .chip{border:1px solid var(--line);background:#0b1330;border-radius:999px;padding:8px 10px;font-size:12px;color:#c9d4ff;display:inline-flex;gap:8px;align-items:center}
+    .chip b{color:var(--txt);font-weight:900}
+
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0 12px}
+    button,label.file,input[type=text],select{
+      border:1px solid var(--line);
+      background:#152050;
+      color:var(--txt);
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    input[type=text]{min-width:min(520px,92vw);cursor:text;font-weight:800}
+    button.good{background:linear-gradient(135deg,#2fe774,#38ef7d);color:#052311;border:1px solid #3cff98aa}
+    button.ghost{background:#0f1734;color:#d7e0ff}
+    button.bad{background:#2a1220;border:1px solid #5d1c3a;color:#ffd1df}
+    label.file{display:inline-flex;align-items:center;gap:8px}
+    input[type=file]{display:none}
+
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}
+    .tab{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:#0f1734;color:#cfe0ff;font-weight:950;cursor:pointer}
+    .tab.active{background:linear-gradient(135deg,#1a2a6c88,#2a3f8a88);border-color:#3a4aa0}
+
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+    .card{grid-column:span 12;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 14px 12px;box-shadow:var(--shadow);backdrop-filter: blur(7px)}
+    .section{font:950 14px/1.2 ui-sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#c8d4ff;margin:0 0 10px}
+
+    .kpi{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px}
+    .pill{background:#0b1330;border:1px solid #24306a;border-radius:14px;padding:12px;position:relative;overflow:hidden}
+    .pill small{color:var(--muted);display:block;font-weight:800}
+    .pill b{font-size:24px;display:block;margin-top:4px}
+    .pill .accent{position:absolute;right:-22px;top:-28px;width:92px;height:92px;border-radius:26px;opacity:.26;transform: rotate(25deg)}
+
+    .two{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .three{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+    .list{display:grid;gap:10px}
+    .item{background:#0b1330;border:1px solid #24306a;border-radius:14px;padding:12px}
+    .item h3{margin:0;font-size:14px}
+    .item .meta{margin-top:6px;color:var(--muted);font-size:12px;display:flex;gap:8px;flex-wrap:wrap}
+
+    .tag{padding:3px 8px;border-radius:999px;font-size:12px;font-weight:950;display:inline-block}
+    .t-ok{background:#123b2b;color:#87f9b8}
+    .t-no{background:#3d2f0b;color:#ffd166}
+    .t-r{background:#2e1e55;color:#d2b5ff}
+
+    .timeline{display:grid;gap:8px;max-height:360px;overflow:auto;padding-right:4px}
+
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{padding:9px 8px;border-bottom:1px dashed #2f3a6d;vertical-align:top}
+    th{text-align:left;color:#b9c5f5;font-weight:950}
+
+    textarea{width:100%;min-height:92px;border-radius:14px;border:1px solid #24306a;background:#0b1330;color:var(--txt);padding:12px;font-weight:700;resize:vertical}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+    .hidden{display:none !important}
+
+    @media (max-width:980px){
+      .kpi{grid-template-columns:repeat(3,1fr)}
+      .two,.three{grid-template-columns:1fr}
+    }
+    @media (max-width:560px){
+      .kpi{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>형님 대시보드</h1>
+        <p class="sub">형님 스케줄/일일 기록/패턴을 한 화면에. 데이터는 <b>브라우저 로컬 우선</b>으로 저장하고, 원하면 JSON으로 백업합니다.</p>
+      </div>
+      <div class="chips" id="chips"></div>
+    </header>
+
+    <div class="toolbar">
+      <button id="load" class="ghost">레포 데이터 로드</button>
+      <button id="saveLocal" class="good">로컬 저장</button>
+      <button id="export" class="ghost">Export(JSON)</button>
+      <label class="file">Import(JSON)<input id="file" type="file" accept="application/json"/></label>
+      <button id="wipe" class="bad">로컬 초기화</button>
+      <select id="range">
+        <option value="7d">최근 7일</option>
+        <option value="24h">최근 24시간</option>
+        <option value="30d">최근 30일</option>
+        <option value="all">전체</option>
+      </select>
+      <input id="q" type="text" placeholder="검색: 예) 점심, 수면, 19:00, 집중"/>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="today">Today</button>
+      <button class="tab" data-tab="patterns">Patterns</button>
+      <button class="tab" data-tab="journal">Journal</button>
+      <button class="tab" data-tab="evidence">Evidence</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </div>
+
+    <div class="grid">
+      <!-- TODAY -->
+      <section class="card" data-pane="today">
+        <h2 class="section">오늘 요약</h2>
+        <div class="kpi" id="kpiToday"></div>
+      </section>
+
+      <section class="card" data-pane="today">
+        <h2 class="section">오늘 체크인(1분)</h2>
+        <div class="two">
+          <div class="item">
+            <h3>컨디션</h3>
+            <div class="meta">(0~10) 숫자만 적어도 됨</div>
+            <div class="row" style="margin-top:10px">
+              <label class="chip" style="cursor:default">에너지 <input id="energy" type="text" inputmode="numeric" style="width:70px;margin-left:8px;border-radius:10px;border:1px solid #24306a;background:#0b1330;color:var(--txt);padding:8px;font-weight:900" placeholder="0-10"/></label>
+              <label class="chip" style="cursor:default">집중 <input id="focus" type="text" inputmode="numeric" style="width:70px;margin-left:8px;border-radius:10px;border:1px solid #24306a;background:#0b1330;color:var(--txt);padding:8px;font-weight:900" placeholder="0-10"/></label>
+              <label class="chip" style="cursor:default">기분 <input id="mood" type="text" inputmode="numeric" style="width:70px;margin-left:8px;border-radius:10px;border:1px solid #24306a;background:#0b1330;color:var(--txt);padding:8px;font-weight:900" placeholder="0-10"/></label>
+            </div>
+          </div>
+          <div class="item">
+            <h3>오늘의 1줄</h3>
+            <div class="meta">성공/막힘/배운점 뭐든 1줄</div>
+            <textarea id="oneLine" placeholder="예) 25분 스프린트 2번 돌림 / 점심 이후 재시동이 어려웠음"></textarea>
+            <div class="row" style="margin-top:10px">
+              <button id="saveCheckin" class="good">체크인 저장</button>
+              <button id="suggest" class="ghost">오늘 추천 1개 보기</button>
+              <span id="suggestOut" class="muted"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" data-pane="today">
+        <h2 class="section">오늘 이벤트(코칭 로그 기반)</h2>
+        <div class="timeline" id="todayEvents"></div>
+      </section>
+
+      <!-- PATTERNS -->
+      <section class="card" data-pane="patterns">
+        <h2 class="section">패턴</h2>
+        <div class="three" id="patternCards"></div>
+      </section>
+
+      <section class="card" data-pane="patterns">
+        <h2 class="section">시간대별(개입/비개입)</h2>
+        <table>
+          <thead><tr><th>timeBlock</th><th>개입</th><th>비개입</th><th>연구반영(applied)</th></tr></thead>
+          <tbody id="blockRows"></tbody>
+        </table>
+      </section>
+
+      <!-- JOURNAL -->
+      <section class="card" data-pane="journal">
+        <h2 class="section">저널(일별 기록)</h2>
+        <div class="muted" style="margin-bottom:10px">이건 형님 데이터입니다. 체크인 저장하면 여기에 쌓이고, 주간 요약도 자동 계산합니다.</div>
+        <div id="journalList" class="list"></div>
+      </section>
+
+      <!-- EVIDENCE -->
+      <section class="card" data-pane="evidence">
+        <h2 class="section">근거(왜 이런 위젯이 있냐)</h2>
+        <div class="two">
+          <div class="item">
+            <h3>Implementation intention(If-Then)</h3>
+            <div class="meta">“~하면, 바로 ~한다” 형식은 실행 전환을 돕는 것으로 널리 알려져 있습니다.</div>
+            <div class="muted" style="margin-top:8px">이 대시보드에서 체크포인트/추천 행동을 1개만 주는 이유.</div>
+          </div>
+          <div class="item">
+            <h3>마찰(Frictions) 최소화</h3>
+            <div class="meta">착수 장벽을 낮추면 행동 시작 확률이 올라갑니다(‘3분/25분’ 같은 초미니 단위).</div>
+            <div class="muted" style="margin-top:8px">그래서 체크인은 1분, 행동 추천은 1개로 제한.</div>
+          </div>
+          <div class="item">
+            <h3>종료 의식(Shutdown ritual)</h3>
+            <div class="meta">하루를 닫는 짧은 정리는 다음날 재시동 비용을 낮춥니다.</div>
+            <div class="muted" style="margin-top:8px">그래서 ‘오늘 1줄’ 기록을 강하게 밀어줌.</div>
+          </div>
+          <div class="item">
+            <h3>수면 위생(Sleep hygiene)</h3>
+            <div class="meta">취침 전 감속(자극 줄이기/루틴)은 수면 진입에 유리합니다.</div>
+            <div class="muted" style="margin-top:8px">패턴 탭에서 수면창(sleepWindow)을 따로 보여줌.</div>
+          </div>
+        </div>
+        <div class="muted" style="margin-top:12px">주의: 이건 의료/치료가 아니라 생산성 코칭/자기관리 보조입니다. 건강 문제가 의심되면 전문가 상담이 우선입니다.</div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="card" data-pane="settings">
+        <h2 class="section">설정</h2>
+        <div class="two">
+          <div class="item">
+            <h3>데이터 소스 URL</h3>
+            <div class="meta">YoMi 코칭/자기개선 로그(JSON)를 어디서 가져올지</div>
+            <input id="loopUrl" type="text" style="width:100%;margin-top:10px" placeholder="https://raw.githubusercontent.com/.../lifecoach-state.json"/>
+            <div class="row" style="margin-top:10px">
+              <button id="applyUrl" class="good">적용</button>
+              <button id="testUrl" class="ghost">테스트 로드</button>
+              <span id="urlMsg" class="muted"></span>
+            </div>
+          </div>
+          <div class="item">
+            <h3>스케줄</h3>
+            <div class="meta">형님 기준 체크포인트</div>
+            <div id="scheduleForm" class="list" style="margin-top:10px"></div>
+            <div class="row" style="margin-top:10px">
+              <button id="saveSchedule" class="good">스케줄 저장</button>
+              <span class="muted">저장은 로컬(브라우저) 기준입니다.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+// ----------------- storage schema -----------------
+// localStorage keys:
+//  - hyungnimDash:profile
+//  - hyungnimDash:journal
+
+const K_PROFILE = 'hyungnimDash:profile';
+const K_JOURNAL = 'hyungnimDash:journal';
+
+let profile = null;
+let journal = null;
+let loopState = null; // lifecoach-state.json (YoMi loop)
+
+const by = id => document.getElementById(id);
+const fmt = n => (Number.isFinite(n) ? n.toLocaleString('ko-KR') : String(n));
+
+function todayKey(tz){
+  // keep simple: use local date (user's browser assumed Asia/Seoul)
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function safeDate(s){
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function withinRange(ts, range){
+  if(range==='all') return true;
+  const d = safeDate(ts);
+  if(!d) return true;
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if(range==='24h') return diff <= 24*60*60*1000;
+  if(range==='7d') return diff <= 7*24*60*60*1000;
+  if(range==='30d') return diff <= 30*24*60*60*1000;
+  return true;
+}
+
+function matchQuery(e, q){
+  if(!q) return true;
+  try{
+    return JSON.stringify(e).toLowerCase().includes(q.toLowerCase());
+  }catch{
+    return true;
+  }
+}
+
+function escapeHtml(s){
+  if(s==null) return '';
+  return String(s)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#039;');
+}
+
+function loadLocal(){
+  const p = localStorage.getItem(K_PROFILE);
+  const j = localStorage.getItem(K_JOURNAL);
+  if(p) profile = JSON.parse(p);
+  if(j) journal = JSON.parse(j);
+}
+
+async function loadRepoDefaults(){
+  const [pRes, jRes] = await Promise.all([
+    fetch('./profile.json', {cache:'no-store'}),
+    fetch('./journal.json', {cache:'no-store'})
+  ]);
+  if(pRes.ok) profile = await pRes.json();
+  if(jRes.ok) journal = await jRes.json();
+}
+
+function saveLocal(){
+  localStorage.setItem(K_PROFILE, JSON.stringify(profile));
+  localStorage.setItem(K_JOURNAL, JSON.stringify(journal));
+  flashChip('저장됨', 'var(--ok)');
+}
+
+function wipeLocal(){
+  localStorage.removeItem(K_PROFILE);
+  localStorage.removeItem(K_JOURNAL);
+  location.reload();
+}
+
+function flashChip(label, color){
+  const el = document.createElement('span');
+  el.className = 'chip';
+  el.innerHTML = `<b style="color:${color}">${label}</b>`;
+  by('chips').prepend(el);
+  setTimeout(()=>el.remove(), 2400);
+}
+
+function getLoopEntries(){
+  if(!loopState) return [];
+  return [...(loopState.entries||[]), ...(loopState.logs||[])];
+}
+
+function filteredLoopEntries(){
+  const range = by('range').value;
+  const q = by('q').value.trim();
+  return getLoopEntries().filter(e => withinRange(e.timestamp, range) && matchQuery(e, q));
+}
+
+function computeBlocks(entries){
+  const blocks = {};
+  entries.forEach(e=>{
+    const b = e.timeBlock || 'unknown';
+    blocks[b] ||= {on:0,off:0,ap:0};
+    if(e.interventionSent===true) blocks[b].on++;
+    if(e.interventionSent===false) blocks[b].off++;
+    if(e.applied===true) blocks[b].ap++;
+  });
+  return blocks;
+}
+
+function renderChips(){
+  const tz = profile?.timezone || '—';
+  const k = todayKey(tz);
+  const count = journal?.entries?.length ?? 0;
+  const loopRows = getLoopEntries().length;
+
+  by('chips').innerHTML = `
+    <span class="chip">today <b>${k}</b></span>
+    <span class="chip">tz <b>${tz}</b></span>
+    <span class="chip">journal <b>${fmt(count)}</b></span>
+    <span class="chip">loopRows <b>${fmt(loopRows)}</b></span>
+  `;
+}
+
+function renderScheduleForm(){
+  const s = profile.schedule;
+  const fields = [
+    ['wake','기상'],['leaveHome','출발'],['arriveWork','도착'],
+    ['lunchStart','점심 시작'],['lunchEnd','점심 끝'],
+    ['leaveWork','퇴근'],['arriveHome','귀가'],
+  ];
+  const html = fields.map(([k,label])=>{
+    return `<div class="item"><h3>${label}</h3><div class="meta">HH:MM</div>
+      <input data-sched="${k}" type="text" value="${escapeHtml(s[k]||'')}" style="width:100%;margin-top:8px"/>
+    </div>`;
+  }).join('') + `
+    <div class="item"><h3>수면창</h3><div class="meta">[start,end]</div>
+      <div class="row" style="margin-top:8px">
+        <input data-sleep="0" type="text" value="${escapeHtml(s.sleepWindow?.[0]||'')}" placeholder="00:00" style="width:120px"/>
+        <input data-sleep="1" type="text" value="${escapeHtml(s.sleepWindow?.[1]||'')}" placeholder="01:00" style="width:120px"/>
+      </div>
+    </div>`;
+  by('scheduleForm').innerHTML = html;
+}
+
+function renderSettings(){
+  by('loopUrl').value = profile?.dataSources?.loopStateUrl || '';
+  renderScheduleForm();
+}
+
+function setTab(tab){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('[data-pane]').forEach(el=>el.classList.toggle('hidden', el.getAttribute('data-pane')!==tab));
+}
+
+function upsertJournalEntry(entry){
+  journal.entries ||= [];
+  const idx = journal.entries.findIndex(e => e.date === entry.date);
+  if(idx >= 0) journal.entries[idx] = {...journal.entries[idx], ...entry};
+  else journal.entries.push(entry);
+  journal.entries.sort((a,b)=> (a.date < b.date ? 1 : -1));
+}
+
+function renderJournal(){
+  const list = (journal.entries||[]).slice().sort((a,b)=>a.date<b.date?1:-1);
+  by('journalList').innerHTML = list.map(e=>`
+    <div class="item">
+      <h3>${e.date} <span class="tag t-ok">check-in</span></h3>
+      <div class="meta">
+        <span>energy: <b>${e.energy ?? '-'}</b></span>
+        <span>focus: <b>${e.focus ?? '-'}</b></span>
+        <span>mood: <b>${e.mood ?? '-'}</b></span>
+      </div>
+      <div style="margin-top:8px">${escapeHtml(e.oneLine||'')}</div>
+    </div>
+  `).join('') || '<div class="muted">아직 기록이 없습니다. Today 탭에서 체크인 저장하세요.</div>';
+}
+
+function renderToday(){
+  const tz = profile.timezone;
+  const key = todayKey(tz);
+
+  // KPIs from journal + loopState
+  const entry = (journal.entries||[]).find(e=>e.date===key);
+  const loop = filteredLoopEntries();
+  const todayLoop = loop.filter(e => (e.timestamp||'').startsWith(key));
+
+  const interventions = todayLoop.filter(e=>e.interventionSent===true).length;
+  const researchChecked = todayLoop.filter(e=>e.researchChecked===true).length;
+
+  const kpi = [
+    {label:'오늘 에너지', val: entry?.energy ?? '—', color:'var(--ok)'},
+    {label:'오늘 집중', val: entry?.focus ?? '—', color:'var(--pri)'},
+    {label:'오늘 기분', val: entry?.mood ?? '—', color:'var(--vio)'},
+    {label:'오늘 기록(1줄)', val: entry?.oneLine ? '있음' : '없음', color: entry?.oneLine ? 'var(--ok)' : 'var(--warn)'},
+    {label:'코칭 개입', val: interventions, color:'var(--warn)'},
+    {label:'researchChecked', val: researchChecked, color:'var(--vio)'}
+  ];
+
+  by('kpiToday').innerHTML = kpi.map(x=>`
+    <div class="pill"><span class="accent" style="background:${x.color}"></span>
+      <small>${x.label}</small><b style="color:${x.color}">${escapeHtml(x.val)}</b>
+    </div>`).join('');
+
+  // events list
+  const q = by('q').value.trim();
+  const ev = todayLoop
+    .filter(e=>matchQuery(e,q))
+    .slice().reverse().slice(0,18)
+    .map(e=>{
+      const tag = e.interventionSent===true ? '<span class="tag t-ok">개입</span>' : (e.interventionSent===false ? '<span class="tag t-no">비개입</span>' : '');
+      const r = e.researchChecked===true ? ' <span class="tag t-r">research</span>' : '';
+      const body = e.suggestedAction || e.assumedOutcome || e.insight || '-';
+      return `<div class="item"><h3>${escapeHtml(e.timestamp||'-')} ${tag}${r}</h3>
+        <div class="meta"><span>${escapeHtml(e.timeBlock||'unknown')}</span></div>
+        <div style="margin-top:8px">${escapeHtml(body)}</div></div>`;
+    }).join('');
+
+  by('todayEvents').innerHTML = ev || '<div class="muted">오늘 이벤트가 없습니다(또는 아직 데이터 로드 전).</div>';
+
+  // preload form fields
+  by('energy').value = entry?.energy ?? '';
+  by('focus').value = entry?.focus ?? '';
+  by('mood').value = entry?.mood ?? '';
+  by('oneLine').value = entry?.oneLine ?? '';
+}
+
+function renderPatterns(){
+  const s = profile.schedule;
+  const loop = filteredLoopEntries();
+  const blocks = computeBlocks(loop);
+
+  // top blocks
+  const topBlocks = Object.entries(blocks)
+    .map(([k,v])=>({k,on:v.on,off:v.off,ap:v.ap,total:v.on+v.off}))
+    .sort((a,b)=>b.total-a.total)
+    .slice(0,6);
+
+  const most = topBlocks[0];
+  const eveningOn = loop.filter(e => (e.timeBlock||'').includes('evening') && e.interventionSent===true).length;
+
+  const cards = [
+    {
+      title:'스케줄(기준)',
+      meta:'현재 설정된 체크포인트',
+      body:`기상 ${s.wake} → 출발 ${s.leaveHome} → 도착 ${s.arriveWork}<br>점심 ${s.lunchStart}~${s.lunchEnd}<br>퇴근 ${s.leaveWork} → 귀가 ${s.arriveHome}<br>수면창 ${s.sleepWindow?.[0]}~${s.sleepWindow?.[1]}`
+    },
+    {
+      title:'가장 많이 뜬 timeBlock',
+      meta:'(range/검색 적용 결과 기준)',
+      body: most ? `<b>${escapeHtml(most.k)}</b><br>개입 ${most.on} / 비개입 ${most.off}` : '데이터 없음'
+    },
+    {
+      title:'저녁 개입 경향',
+      meta:'피로/반감 방지용 모니터링',
+      body:`저녁 관련 개입: <b>${eveningOn}</b><br><span class="muted">저녁은 과개입 시 피로가 올라가서 간격 넓히는 편이 유리합니다.</span>`
+    }
+  ];
+
+  by('patternCards').innerHTML = cards.map(c=>`
+    <div class="item">
+      <h3>${c.title}</h3>
+      <div class="meta">${c.meta}</div>
+      <div style="margin-top:8px">${c.body}</div>
+    </div>`).join('');
+
+  // blocks table
+  by('blockRows').innerHTML = Object.entries(blocks)
+    .sort((a,b)=>(b[1].on+b[1].off)-(a[1].on+a[1].off))
+    .map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${v.on}</td><td>${v.off}</td><td>${v.ap}</td></tr>`)
+    .join('') || '<tr><td colspan="4" class="muted">데이터 없음</td></tr>';
+}
+
+function renderAll(){
+  renderChips();
+  renderSettings();
+  renderToday();
+  renderPatterns();
+  renderJournal();
+}
+
+// -------------- data loading --------------
+async function loadLoopState(url){
+  const res = await fetch(url, {cache:'no-store'});
+  if(!res.ok) throw new Error('fetch failed');
+  loopState = await res.json();
+}
+
+async function loadEverything(){
+  // 1) repo defaults
+  await loadRepoDefaults();
+  // 2) local overrides
+  loadLocal();
+  // 3) loop state (optional)
+  try{
+    const url = profile?.dataSources?.loopStateUrl;
+    if(url) await loadLoopState(url);
+  }catch{}
+  renderAll();
+}
+
+// -------------- actions --------------
+by('saveLocal').addEventListener('click', ()=>{ saveLocal(); });
+by('wipe').addEventListener('click', ()=>{ if(confirm('로컬 데이터(프로필/저널) 초기화할까요?')) wipeLocal(); });
+
+by('load').addEventListener('click', async ()=>{
+  try{
+    await loadEverything();
+    flashChip('로드 완료', 'var(--pri)');
+  }catch{
+    alert('로드 실패. 잠시 후 다시 시도해주세요.');
+  }
+});
+
+by('export').addEventListener('click', ()=>{
+  const pack = {profile, journal};
+  const blob = new Blob([JSON.stringify(pack, null, 2)], {type:'application/json;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `hyungnim-dashboard-export-${todayKey(profile?.timezone||'local')}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+by('file').addEventListener('change', async (ev)=>{
+  const f = ev.target.files?.[0]; if(!f) return;
+  const txt = await f.text();
+  try{
+    const pack = JSON.parse(txt);
+    if(pack.profile) profile = pack.profile;
+    if(pack.journal) journal = pack.journal;
+    saveLocal();
+    renderAll();
+  }catch{
+    alert('Import 실패: JSON 파싱 오류');
+  }
+});
+
+by('range').addEventListener('change', ()=>renderAll());
+by('q').addEventListener('input', ()=>{ window.clearTimeout(window.__qt); window.__qt=setTimeout(renderAll,140); });
+
+by('saveCheckin').addEventListener('click', ()=>{
+  const date = todayKey(profile?.timezone||'local');
+  const entry = {
+    date,
+    energy: by('energy').value.trim() || null,
+    focus: by('focus').value.trim() || null,
+    mood: by('mood').value.trim() || null,
+    oneLine: by('oneLine').value.trim() || ''
+  };
+  upsertJournalEntry(entry);
+  saveLocal();
+  renderJournal();
+  renderToday();
+});
+
+by('suggest').addEventListener('click', ()=>{
+  // research-based *structure* (not medical): 1 action, tiny, anchored to schedule
+  const s = profile?.schedule;
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const t = `${hh}:${mm}`;
+
+  const pick = [
+    {action:'25분 타이머 켜고 만들던 작업 한 덩어리 끝점(저장/커밋)까지', why:'작은 단위로 즉시 착수하면 “결정 피로”가 줄고 몰입 진입이 빨라지는 경향이 있습니다.'},
+    {action:'3분만 정리: 지금 막힌 1개를 문장으로 적고 다음 행동 1개만 정하기', why:'문장화는 인지 부하를 낮추고 다음 행동을 선명하게 만들어 재시동을 쉽게 합니다.'},
+    {action:'퇴근 10분 전 종료 메모 1줄(내일 첫 행동 포함)', why:'종료 의식은 다음날 재시동 비용을 낮춰서 지속성을 돕습니다.'}
+  ];
+
+  const sidx = Math.floor(Math.random()*pick.length);
+  by('suggestOut').textContent = `추천: ${pick[sidx].action} — 근거: ${pick[sidx].why}`;
+});
+
+by('applyUrl').addEventListener('click', ()=>{
+  profile.dataSources ||= {};
+  profile.dataSources.loopStateUrl = by('loopUrl').value.trim();
+  saveLocal();
+  by('urlMsg').textContent = '적용됨(로컬 저장)';
+});
+
+by('testUrl').addEventListener('click', async ()=>{
+  try{
+    const url = by('loopUrl').value.trim();
+    await loadLoopState(url);
+    saveLocal();
+    renderAll();
+    by('urlMsg').textContent = '로드 성공';
+  }catch{
+    by('urlMsg').textContent = '로드 실패';
+  }
+});
+
+by('saveSchedule').addEventListener('click', ()=>{
+  const nodes = document.querySelectorAll('[data-sched]');
+  nodes.forEach(n=>{ profile.schedule[n.dataset.sched] = n.value.trim(); });
+  const s0 = document.querySelector('[data-sleep="0"]').value.trim();
+  const s1 = document.querySelector('[data-sleep="1"]').value.trim();
+  profile.schedule.sleepWindow = [s0,s1];
+  saveLocal();
+  renderAll();
+});
+
+// tabs
+for(const b of document.querySelectorAll('.tab')){
+  b.addEventListener('click', ()=>setTab(b.dataset.tab));
+}
+
+// init
+(async function init(){
+  await loadEverything();
+  setTab('today');
+})();
+</script>
+</body>
+</html>

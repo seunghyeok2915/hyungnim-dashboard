@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "owner": "형님",
+  "timezone": "Asia/Seoul",
+  "schedule": {
+    "wake": "08:30",
+    "leaveHome": "09:10",
+    "arriveWork": "10:10",
+    "lunchStart": "13:00",
+    "lunchEnd": "14:00",
+    "leaveWork": "19:10",
+    "arriveHome": "20:00",
+    "sleepWindow": ["00:00", "01:00"]
+  },
+  "dataSources": {
+    "loopStateUrl": "https://raw.githubusercontent.com/seunghyeok2915/lifecoach-loop-log/main/lifecoach-state.json"
+  }
+}
