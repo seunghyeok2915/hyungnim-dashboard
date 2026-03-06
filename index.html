@@ -128,6 +128,7 @@
       <button class="tab active" data-tab="today">Today</button>
       <button class="tab" data-tab="patterns">Patterns</button>
       <button class="tab" data-tab="journal">Journal</button>
+      <button class="tab" data-tab="loop">Loop</button>
       <button class="tab" data-tab="evidence">Evidence</button>
       <button class="tab" data-tab="settings">Settings</button>
     </div>
@@ -181,6 +182,29 @@
           <thead><tr><th>timeBlock</th><th>개입</th><th>비개입</th><th>연구반영(applied)</th></tr></thead>
           <tbody id="blockRows"></tbody>
         </table>
+      </section>
+
+      <!-- LOOP -->
+      <section class="card" data-pane="loop">
+        <h2 class="section">주간 요약(자동)</h2>
+        <div class="kpi" id="loopKpis"></div>
+        <div class="muted" style="margin-top:10px">설명식 근거: 주간 단위의 피드백은 과한 분석 없이도 패턴(언제 무너지는지/언제 잘되는지)을 잡아줍니다. 그래서 ‘주간 요약 + 다음 행동 1개’로 고정합니다.</div>
+      </section>
+
+      <section class="card" data-pane="loop">
+        <h2 class="section">자동 개선 제안(1개)</h2>
+        <div id="loopInsights" class="item"></div>
+      </section>
+
+      <section class="card" data-pane="loop">
+        <h2 class="section">YoMi가 배운 점(코칭 로그의 daily_reflection)</h2>
+        <div id="loopReflections" class="list"></div>
+      </section>
+
+      <section class="card" data-pane="loop">
+        <h2 class="section">대시보드 변경 로그</h2>
+        <div class="muted" style="margin-bottom:10px">이 대시보드는 저도 계속 개선합니다. (버전/변경 내용은 여기에 남김)</div>
+        <div id="loopChangelog" class="list"></div>
       </section>
 
       <!-- JOURNAL -->
@@ -254,10 +278,15 @@
 
 const K_PROFILE = 'hyungnimDash:profile';
 const K_JOURNAL = 'hyungnimDash:journal';
+const K_CHANGELOG = 'hyungnimDash:changelog';
+
+// Dashboard version: bump when you change UI/logic.
+const DASH_VERSION = '2026-03-06.1';
 
 let profile = null;
 let journal = null;
 let loopState = null; // lifecoach-state.json (YoMi loop)
+let changelog = [];   // local dashboard change log
 
 const by = id => document.getElementById(id);
 const fmt = n => (Number.isFinite(n) ? n.toLocaleString('ko-KR') : String(n));
@@ -310,8 +339,11 @@ function escapeHtml(s){
 function loadLocal(){
   const p = localStorage.getItem(K_PROFILE);
   const j = localStorage.getItem(K_JOURNAL);
+  const c = localStorage.getItem(K_CHANGELOG);
   if(p) profile = JSON.parse(p);
   if(j) journal = JSON.parse(j);
+  if(c) changelog = JSON.parse(c);
+  if(!Array.isArray(changelog)) changelog = [];
 }
 
 async function loadRepoDefaults(){
@@ -326,12 +358,14 @@ async function loadRepoDefaults(){
 function saveLocal(){
   localStorage.setItem(K_PROFILE, JSON.stringify(profile));
   localStorage.setItem(K_JOURNAL, JSON.stringify(journal));
+  localStorage.setItem(K_CHANGELOG, JSON.stringify(changelog));
   flashChip('저장됨', 'var(--ok)');
 }
 
 function wipeLocal(){
   localStorage.removeItem(K_PROFILE);
   localStorage.removeItem(K_JOURNAL);
+  localStorage.removeItem(K_CHANGELOG);
   location.reload();
 }
 
@@ -341,6 +375,34 @@ function flashChip(label, color){
   el.innerHTML = `<b style="color:${color}">${label}</b>`;
   by('chips').prepend(el);
   setTimeout(()=>el.remove(), 2400);
+}
+
+function pushChangelog({title, details}){
+  changelog ||= [];
+  const entry = {
+    timestamp: new Date().toISOString(),
+    version: DASH_VERSION,
+    title: title || 'update',
+    details: Array.isArray(details) ? details : (details ? [String(details)] : [])
+  };
+  changelog.unshift(entry);
+  // cap
+  changelog = changelog.slice(0, 50);
+}
+
+function ensureChangelog(){
+  // If this build version is new, record a visible entry.
+  const last = changelog?.[0];
+  if(!last || last.version !== DASH_VERSION){
+    pushChangelog({
+      title: 'dashboard updated',
+      details: [
+        'Loop 탭 추가(주간 요약/자동 제안/변경 로그)',
+        'YoMi daily_reflection(배운 점) 자동 추출 표시',
+        '로컬 우선 저장(privacy) + JSON 백업 유지'
+      ]
+    });
+  }
 }
 
 function getLoopEntries(){
@@ -373,6 +435,7 @@ function renderChips(){
   const loopRows = getLoopEntries().length;
 
   by('chips').innerHTML = `
+    <span class="chip">ver <b>${DASH_VERSION}</b></span>
     <span class="chip">today <b>${k}</b></span>
     <span class="chip">tz <b>${tz}</b></span>
     <span class="chip">journal <b>${fmt(count)}</b></span>
@@ -529,11 +592,134 @@ function renderPatterns(){
     .join('') || '<tr><td colspan="4" class="muted">데이터 없음</td></tr>';
 }
 
+function dateKey(d){
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseDateKey(k){
+  // k: YYYY-MM-DD
+  const d = new Date(`${k}T00:00:00`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function journalEntriesLastDays(days){
+  const list = (journal?.entries || []).slice();
+  const now = new Date();
+  const start = new Date(now.getTime() - (days*24*60*60*1000));
+  return list.filter(e=>{
+    const d = parseDateKey(e.date);
+    return d && d >= start && d <= now;
+  });
+}
+
+function computeCheckinStreak(){
+  const set = new Set((journal?.entries||[]).map(e=>e.date));
+  let streak = 0;
+  const d = new Date();
+  for(let i=0;i<60;i++){
+    const k = dateKey(d);
+    if(set.has(k)) streak++;
+    else break;
+    d.setDate(d.getDate()-1);
+  }
+  return streak;
+}
+
+function avgOf(entries, key){
+  const nums = entries
+    .map(e=>Number(e[key]))
+    .filter(n=>Number.isFinite(n));
+  if(!nums.length) return null;
+  return Math.round((nums.reduce((a,b)=>a+b,0)/nums.length)*10)/10;
+}
+
+function renderLoopTab(){
+  // 1) weekly KPIs from journal
+  const w = journalEntriesLastDays(7);
+  const streak = computeCheckinStreak();
+  const avgEnergy = avgOf(w,'energy');
+  const avgFocus = avgOf(w,'focus');
+  const avgMood = avgOf(w,'mood');
+
+  const loop = filteredLoopEntries();
+  const appliedTrue = loop.filter(e=>e.applied===true).length;
+  const appliedFalse = loop.filter(e=>e.applied===false).length;
+  const denom = appliedTrue + appliedFalse;
+  const appliedRate = denom ? Math.round(appliedTrue/denom*100) : 0;
+
+  const kpis = [
+    {label:'최근 7일 체크인', val:`${w.length}/7`, color:'var(--ok)'},
+    {label:'체크인 스트릭', val: streak, color:'var(--pri)'},
+    {label:'평균 에너지', val: avgEnergy ?? '—', color:'var(--ok)'},
+    {label:'평균 집중', val: avgFocus ?? '—', color:'var(--pri)'},
+    {label:'평균 기분', val: avgMood ?? '—', color:'var(--vio)'},
+    {label:'연구 반영률(코칭로그)', val: `${appliedRate}%`, color:'var(--vio)'},
+  ];
+  by('loopKpis').innerHTML = kpis.map(x=>`
+    <div class="pill"><span class="accent" style="background:${x.color}"></span>
+      <small>${x.label}</small><b style="color:${x.color}">${escapeHtml(x.val)}</b>
+    </div>`).join('');
+
+  // 2) auto insight: 1 action only
+  // Explanation-first, research-grounded *principles* (not medical).
+  let action = '오늘 체크인(에너지/집중/기분 + 1줄) 1분만 저장';
+  let why = '자기기록은 “피드백 → 조정” 루프를 만들어서 다음 행동을 더 쉽게 붙입니다. 특히 1분처럼 마찰이 낮을수록 지속률이 올라가는 경향이 있습니다.';
+
+  if(w.length >= 4){
+    // look at oneLine completion
+    const emptyOneLine = w.filter(e => !(e.oneLine||'').trim()).length;
+    if(emptyOneLine >= 2){
+      action = '오늘의 1줄을 10초만 채우기(완료 1개/막힘 1개)';
+      why = '짧은 문장화는 머릿속의 흐릿함을 줄이고, 다음 행동을 “하나”로 고정해서 재시동을 쉽게 만듭니다.';
+    } else if(streak >= 3){
+      action = '퇴근 10분 전에 종료 메모 1줄(내일 첫 행동 포함)';
+      why = '종료 의식(shutdown)은 작업 맥락을 저장해두는 효과가 있어 다음날 시작 마찰을 낮추는 데 유리합니다.';
+    }
+  }
+
+  by('loopInsights').innerHTML = `
+    <h3>이번 주 개선 1개</h3>
+    <div class="meta"><span class="tag t-r">원칙 기반</span> <span class="muted">(range/검색과 무관하게 ‘지속성’ 우선으로 추천)</span></div>
+    <div style="margin-top:10px"><b>지금 할 행동:</b> ${escapeHtml(action)}</div>
+    <div style="margin-top:8px" class="muted"><b>설명식 근거:</b> ${escapeHtml(why)}</div>
+  `;
+
+  // 3) YoMi daily_reflection (learned points)
+  const reflections = getLoopEntries()
+    .filter(e => e.timeBlock === 'daily_reflection' && e.dailyReview)
+    .slice().reverse().slice(0,5);
+
+  by('loopReflections').innerHTML = reflections.map(e=>{
+    const dr = e.dailyReview;
+    return `
+      <div class="item">
+        <h3>${escapeHtml(e.timestamp||'-')} <span class="tag t-r">daily_reflection</span></h3>
+        <div class="meta">workedWell · didNotWorkWell · tomorrowAdjustment</div>
+        <div style="margin-top:10px"><b style="color:var(--ok)">Worked</b><div>${escapeHtml(dr.workedWell||'-')}</div></div>
+        <div style="margin-top:10px"><b style="color:var(--warn)">Didn’t</b><div>${escapeHtml(dr.didNotWorkWell||'-')}</div></div>
+        <div style="margin-top:10px"><b style="color:var(--pri)">Adjust</b><div>${escapeHtml(dr.tomorrowAdjustment||'-')}</div></div>
+      </div>`;
+  }).join('') || '<div class="muted">daily_reflection 로그가 아직 없습니다.</div>';
+
+  // 4) dashboard changelog
+  by('loopChangelog').innerHTML = (changelog||[]).map(c=>`
+    <div class="item">
+      <h3>${escapeHtml(c.title||'update')} <span class="tag t-ok">${escapeHtml(c.version||'')}</span></h3>
+      <div class="meta">${escapeHtml(c.timestamp||'')}</div>
+      <div style="margin-top:8px">${(c.details||[]).map(d=>`<div>• ${escapeHtml(d)}</div>`).join('')}</div>
+    </div>
+  `).join('') || '<div class="muted">변경 로그가 없습니다.</div>';
+}
+
 function renderAll(){
   renderChips();
   renderSettings();
   renderToday();
   renderPatterns();
+  renderLoopTab();
   renderJournal();
 }
 
@@ -549,6 +735,9 @@ async function loadEverything(){
   await loadRepoDefaults();
   // 2) local overrides
   loadLocal();
+  // 2.5) dashboard self-improvement loop (record versioned changes)
+  ensureChangelog();
+  try{ localStorage.setItem(K_CHANGELOG, JSON.stringify(changelog)); }catch{}
   // 3) loop state (optional)
   try{
     const url = profile?.dataSources?.loopStateUrl;
